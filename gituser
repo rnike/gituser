@@ -1,0 +1,193 @@
+#!/bin/bash
+
+GITUSER_PATH="$HOME/.gituser"
+GIT_CONFIG="$HOME/.gitconfig"
+
+########### FUNCTIONS ###########
+function showHeader() {
+    echo "
+#############################################
+
+         Gituser v1.0     by yum650350
+
+#############################################"
+}
+
+function callHelp() {
+    showHeader
+    echo "
+Useage
+
+gituser [operation] [parameter]
+
+    n | new [username] [email] : Create and switch to a new git user. 
+
+    s | save                   : Save current git user.
+
+    l | load [username]        : Load saved git user.
+
+    ls | list                  : List all saved git users.
+
+    rm | remove [username]     : Remove a saved user.
+                    -a         : Remove all saved users.
+
+    h | help                   : Show help.
+"
+}
+
+function paramError() {
+    echo "gituser: Error amount of parameters, should be $1 but $(($2 - 1)), see 'gituser h'."
+}
+
+function ShowCurrentGitConfig() {
+    echo "--------------------------------------------"
+    echo "$(cat $GIT_CONFIG)"
+    echo "--------------------------------------------"
+}
+
+function GitUserHasChanged() {
+    echo "$GIT_CONFIG"
+    ShowCurrentGitConfig
+    echo "gituser: Git user has changed."
+}
+
+function new() {
+    if [ $# == 3 ]; then
+        rm $GIT_CONFIG
+        git config --global user.name $2
+        git config --global user.email $3
+        GitUserHasChanged
+    else
+        paramError 2 $#
+    fi
+}
+
+function save() {
+    if [ -f $GIT_CONFIG ]; then
+        [ ! -d $GITUSER_PATH ] && mkdir -p $GITUSER_PATH
+        SAVE_FILE_NAME=""
+        while read line; do
+            if [[ $line == "name = "* ]]; then
+                SAVE_FILE_NAME="$(echo -e "${line}" | cut -d'=' -f 2 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            fi
+        done <$HOME/.gitconfig
+        if [ SAVE_FILE_NAME == "" ]; then
+            echo "gituser: Can't find name in .gitconfig, use 'gituser n [username] [email]' to set git user, see 'gituser h' for more informations."
+        else
+            if [ -f $GITUSER_PATH/$SAVE_FILE_NAME ]; then
+                # read -r -p "gituser: User '$SAVE_FILE_NAME' exist, override? (y/n)" response
+                while true; do
+                    read -p "gituser: User '$SAVE_FILE_NAME' exist, override? (y/n):" yn
+                    case $yn in
+                    [Yy]*)
+                        break
+                        ;;
+                    [Nn]*) exit ;;
+                    esac
+                done
+            fi
+            echo "gituser: Save user '$SAVE_FILE_NAME' to $GITUSER_PATH/$SAVE_FILE_NAME"
+            cp $GIT_CONFIG $GITUSER_PATH/$SAVE_FILE_NAME
+        fi
+    else
+        echo "gituser: .gitconfig is not exist, use 'gituser n [username] [email]' to create one, see 'gituser h' for more information."
+    fi
+}
+
+function load() {
+    if [ $# == 2 ]; then
+        LOAD_USER_FILE=$GITUSER_PATH/$2
+        if [ -f $LOAD_USER_FILE ]; then
+            cp $LOAD_USER_FILE $GIT_CONFIG
+            GitUserHasChanged
+        else
+            echo "gituser: User no found, use 'gituser n' to set one, or 'gituser s' to save current user. see 'gituser h' for more information."
+        fi
+    else
+        paramError 1 $#
+    fi
+}
+
+function remove() {
+    if [ $# == 2 ]; then
+        if [ $2 == "-a" ]; then
+            rm -rf $GITUSER_PATH
+            echo "gituser: Removed all saved users."
+        else
+            if [ -f $GITUSER_PATH/$2 ]; then
+                rm $GITUSER_PATH/$2
+                echo "gituser: Removed $2."
+            else
+                echo "gituser: Use $2 not found in save directory. ($GITUSER_PATH)"
+            fi
+        fi
+    else
+        paramError 1 $#
+    fi
+}
+
+function list() {
+    echo "--------------------------------------------"
+    echo -e "name|email"
+    echo "--------------------------------------------"
+    COUNTER=0
+    for file in $GITUSER_PATH/*; do
+        NAME=""
+        EMAIL=""
+        while read line; do
+            if [[ $line == "name = "* ]]; then
+                NAME="$(echo -e "${line}" | cut -d'=' -f 2 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            fi
+            if [[ $line == "email = "* ]]; then
+                EMAIL="$(echo -e "${line}" | cut -d'=' -f 2 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            fi
+        done <$file
+        echo -e "$NAME|$EMAIL"
+        COUNTER=$(($COUNTER + 1))
+    done
+    echo "--------------------------------------------"
+    echo "Found $COUNTER saved file(s)."
+}
+
+function showCurrent() {
+    showHeader
+    echo "
+Gituser v1.0
+"
+    if [ -f $GIT_CONFIG ]; then
+        echo Your current setting
+        ShowCurrentGitConfig
+        echo "gituser: see 'gituser h' for more information."
+    else
+        echo "gituser: .gitconfig is not exist, use 'gituser n [username] [email]' to create one, see 'gituser h' for more information."
+    fi
+}
+#################################
+
+if [ $# == 0 ]; then
+    showCurrent
+else
+    case $1 in
+    n | new)
+        new $*
+        ;;
+    s | save)
+        save
+        ;;
+    l | load)
+        load $*
+        ;;
+    ls | list)
+        list
+        ;;
+    rm | remove)
+        remove $*
+        ;;
+    h | help)
+        callHelp
+        ;;
+    *)
+        echo "gituser: '$1' is not a gituser command. See 'gituser help'."
+        ;;
+    esac
+fi
