@@ -152,7 +152,6 @@ function list() {
 function showCurrent() {
     showHeader
     echo "
-Gituser v1.0
 "
     if [ -f $GIT_CONFIG ]; then
         echo Your current setting
